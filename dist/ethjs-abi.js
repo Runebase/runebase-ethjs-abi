@@ -5342,6 +5342,57 @@ var BN = __webpack_require__(1);
 var numberToBN = __webpack_require__(10);
 var keccak256 = __webpack_require__(9).keccak_256;
 
+/**
+ * Convert Buffer to hex string
+ * @param {(Buffer | string)} data
+ * @returns {string} data in hexadecimal string
+ */
+function toHexStringNoPrefix(data) {
+  if (typeof data === 'string') {
+    return data;
+  }
+
+  return data.toString('hex');
+}
+
+/**
+ * Convert Buffer to hex string, prefixed with `0x`
+ * @param {(Buffer | string)} data
+ * @returns {string} data in hexadecimal string
+ */
+function toHexStringPrefixed(data) {
+  if (typeof data === 'string') {
+    return '0x' + data;
+  }
+
+  return '0x' + data.toString('hex');
+}
+
+var noHexStringPrefix = false;
+/**
+ * Convert Buffer to hex string
+ * @param {(Buffer | string)} data
+ * @returns {string} data in hexadecimal string
+ */
+function toHexString(data) {
+  if (noHexStringPrefix) {
+    return toHexStringNoPrefix(data);
+  }
+
+  return toHexStringPrefixed(data);
+}
+
+/**
+ *
+ * @param {Object} opts ABI encoding options
+ * @param {boolean} opts.noHexStringPrefix Disable 0x prefix when outputing hexadecimal string
+ */
+function configure(opts) {
+  if (opts.noHexStringPrefix) {
+    noHexStringPrefix = toHexStringNoPrefix;
+  }
+}
+
 // from ethereumjs-util
 function stripZeros(aInput) {
   var a = aInput; // eslint-disable-line
@@ -5523,7 +5574,7 @@ function coderFixedBytes(length) {
 
       return {
         consumed: 32,
-        value: '0x' + data.slice(offset, offset + length).toString('hex')
+        value: toHexString(data.slice(offset, offset + length))
       };
     }
   };
@@ -5541,7 +5592,7 @@ var coderAddress = {
     if (data.length === 0) {
       return {
         consumed: 32,
-        value: '0x'
+        value: toHexString(new Buffer(''))
       };
     }
     if (data.length !== 0 && data.length < offset + 32) {
@@ -5549,7 +5600,7 @@ var coderAddress = {
     }
     return {
       consumed: 32,
-      value: '0x' + data.slice(offset + 12, offset + 32).toString('hex')
+      value: toHexString(data.slice(offset + 12, offset + 32).toString('hex'))
     };
   }
 };
@@ -5585,7 +5636,7 @@ var coderDynamicBytes = {
   },
   decode: function decodeDynamicBytes(data, offset) {
     var result = decodeDynamicBytesHelper(data, offset); // eslint-disable-line
-    result.value = '0x' + result.value.toString('hex');
+    result.value = toHexString(result.value);
     return result;
   },
   dynamic: true
@@ -5778,7 +5829,11 @@ module.exports = {
   coderString: coderString,
   coderArray: coderArray,
   paramTypePart: paramTypePart,
-  getParamCoder: getParamCoder
+  getParamCoder: getParamCoder,
+  configure: configure,
+  toHexStringNoPrefix: toHexStringNoPrefix,
+  toHexStringPrefixed: toHexStringPrefixed,
+  toHexString: toHexString
 };
 
 /***/ },
@@ -5805,7 +5860,6 @@ Note, Richard is a god of ether gods. Follow and respect him, and use Ethers.io!
 
 var Buffer = __webpack_require__(0).Buffer;
 var utils = __webpack_require__(3);
-var hexStringToBuffer = utils.hexStringToBuffer;
 var uint256Coder = utils.uint256Coder;
 var coderBoolean = utils.coderBoolean;
 var coderFixedBytes = utils.coderFixedBytes;
@@ -5816,44 +5870,10 @@ var coderArray = utils.coderArray;
 var paramTypePart = utils.paramTypePart;
 var getParamCoder = utils.getParamCoder;
 
-/**
- * Convert Buffer to hex string
- * @param {(Buffer | string)} data
- * @returns {string} data in hexadecimal string
- */
-function toHexStringNoPrefix(data) {
-  if (typeof data === "string") {
-    return data;
-  } else {
-    return data.toString('hex');
-  }
-}
-
-/**
- * Convert Buffer to hex string
- * @param {(Buffer | string)} data
- * @returns {string} data in hexadecimal string
- */
-function toHexStringPrefixed(data) {
-  if (typeof data === "string") {
-    return '0x' + data;
-  } else {
-    return '0x' + data.toString('hex');
-  }
-}
-
-var hexstr = toHexStringPrefixed;
-
-/**
- *
- * @param {Object} opts ABI encoding options
- * @param {boolean} opts.noHexStringPrefix Disable 0x prefix when outputing hexadecimal string
- */
-function configure(opts) {
-  if (opts.noHexStringPrefix) {
-    hexstr = toHexStringNoPrefix;
-  }
-}
+var hexStringToBuffer = utils.hexStringToBuffer,
+    toHexStringNoPrefix = utils.toHexStringNoPrefix,
+    toHexString = utils.toHexString,
+    configure = utils.configure;
 
 // function Result() { }
 
@@ -5951,7 +5971,7 @@ function encodeParams(types, values) {
   if (noHexPrefix) {
     return toHexStringNoPrefix(data);
   } else {
-    return hexstr(data);
+    return toHexString(data);
   }
 }
 
@@ -5975,8 +5995,6 @@ function decodeParams(names, types, data) {
     types = names;
     names = [];
   }
-
-  console.log(types, data.toString("hex"));
 
   data = utils.hexOrBuffer(data);
 
@@ -6009,7 +6027,7 @@ function encodeSignature(method) {
   var signature = method.name + '(' + utils.getKeys(method.inputs, 'type').join(',') + ')';
   var signatureEncoded = utils.keccak256(signature).slice(0, 8);
 
-  return hexstr(signatureEncoded);
+  return toHexString(signatureEncoded);
 }
 
 // encode method ABI object with values in an array, output bytecode
@@ -6035,7 +6053,7 @@ function encodeEvent(eventObject, values) {
 function eventSignature(eventObject) {
   var signature = eventObject.name + '(' + utils.getKeys(eventObject.inputs, 'type').join(',') + ')';
 
-  return hexstr(utils.keccak256(signature));
+  return toHexString(utils.keccak256(signature));
 }
 
 // decode method data bytecode, from method ABI object
@@ -6137,68 +6155,102 @@ for (var i = 0, len = code.length; i < len; ++i) {
   revLookup[code.charCodeAt(i)] = i
 }
 
+// Support decoding URL-safe base64 strings, as Node.js does.
+// See: https://en.wikipedia.org/wiki/Base64#URL_applications
 revLookup['-'.charCodeAt(0)] = 62
 revLookup['_'.charCodeAt(0)] = 63
 
-function placeHoldersCount (b64) {
+function getLens (b64) {
   var len = b64.length
+
   if (len % 4 > 0) {
     throw new Error('Invalid string. Length must be a multiple of 4')
   }
 
-  // the number of equal signs (place holders)
-  // if there are two placeholders, than the two characters before it
-  // represent one byte
-  // if there is only one, then the three characters before it represent 2 bytes
-  // this is just a cheap hack to not do indexOf twice
-  return b64[len - 2] === '=' ? 2 : b64[len - 1] === '=' ? 1 : 0
+  // Trim off extra bytes after placeholder bytes are found
+  // See: https://github.com/beatgammit/base64-js/issues/42
+  var validLen = b64.indexOf('=')
+  if (validLen === -1) validLen = len
+
+  var placeHoldersLen = validLen === len
+    ? 0
+    : 4 - (validLen % 4)
+
+  return [validLen, placeHoldersLen]
 }
 
+// base64 is 4/3 + up to two characters of the original data
 function byteLength (b64) {
-  // base64 is 4/3 + up to two characters of the original data
-  return (b64.length * 3 / 4) - placeHoldersCount(b64)
+  var lens = getLens(b64)
+  var validLen = lens[0]
+  var placeHoldersLen = lens[1]
+  return ((validLen + placeHoldersLen) * 3 / 4) - placeHoldersLen
+}
+
+function _byteLength (b64, validLen, placeHoldersLen) {
+  return ((validLen + placeHoldersLen) * 3 / 4) - placeHoldersLen
 }
 
 function toByteArray (b64) {
-  var i, l, tmp, placeHolders, arr
-  var len = b64.length
-  placeHolders = placeHoldersCount(b64)
+  var tmp
+  var lens = getLens(b64)
+  var validLen = lens[0]
+  var placeHoldersLen = lens[1]
 
-  arr = new Arr((len * 3 / 4) - placeHolders)
+  var arr = new Arr(_byteLength(b64, validLen, placeHoldersLen))
+
+  var curByte = 0
 
   // if there are placeholders, only get up to the last complete 4 chars
-  l = placeHolders > 0 ? len - 4 : len
+  var len = placeHoldersLen > 0
+    ? validLen - 4
+    : validLen
 
-  var L = 0
-
-  for (i = 0; i < l; i += 4) {
-    tmp = (revLookup[b64.charCodeAt(i)] << 18) | (revLookup[b64.charCodeAt(i + 1)] << 12) | (revLookup[b64.charCodeAt(i + 2)] << 6) | revLookup[b64.charCodeAt(i + 3)]
-    arr[L++] = (tmp >> 16) & 0xFF
-    arr[L++] = (tmp >> 8) & 0xFF
-    arr[L++] = tmp & 0xFF
+  for (var i = 0; i < len; i += 4) {
+    tmp =
+      (revLookup[b64.charCodeAt(i)] << 18) |
+      (revLookup[b64.charCodeAt(i + 1)] << 12) |
+      (revLookup[b64.charCodeAt(i + 2)] << 6) |
+      revLookup[b64.charCodeAt(i + 3)]
+    arr[curByte++] = (tmp >> 16) & 0xFF
+    arr[curByte++] = (tmp >> 8) & 0xFF
+    arr[curByte++] = tmp & 0xFF
   }
 
-  if (placeHolders === 2) {
-    tmp = (revLookup[b64.charCodeAt(i)] << 2) | (revLookup[b64.charCodeAt(i + 1)] >> 4)
-    arr[L++] = tmp & 0xFF
-  } else if (placeHolders === 1) {
-    tmp = (revLookup[b64.charCodeAt(i)] << 10) | (revLookup[b64.charCodeAt(i + 1)] << 4) | (revLookup[b64.charCodeAt(i + 2)] >> 2)
-    arr[L++] = (tmp >> 8) & 0xFF
-    arr[L++] = tmp & 0xFF
+  if (placeHoldersLen === 2) {
+    tmp =
+      (revLookup[b64.charCodeAt(i)] << 2) |
+      (revLookup[b64.charCodeAt(i + 1)] >> 4)
+    arr[curByte++] = tmp & 0xFF
+  }
+
+  if (placeHoldersLen === 1) {
+    tmp =
+      (revLookup[b64.charCodeAt(i)] << 10) |
+      (revLookup[b64.charCodeAt(i + 1)] << 4) |
+      (revLookup[b64.charCodeAt(i + 2)] >> 2)
+    arr[curByte++] = (tmp >> 8) & 0xFF
+    arr[curByte++] = tmp & 0xFF
   }
 
   return arr
 }
 
 function tripletToBase64 (num) {
-  return lookup[num >> 18 & 0x3F] + lookup[num >> 12 & 0x3F] + lookup[num >> 6 & 0x3F] + lookup[num & 0x3F]
+  return lookup[num >> 18 & 0x3F] +
+    lookup[num >> 12 & 0x3F] +
+    lookup[num >> 6 & 0x3F] +
+    lookup[num & 0x3F]
 }
 
 function encodeChunk (uint8, start, end) {
   var tmp
   var output = []
   for (var i = start; i < end; i += 3) {
-    tmp = (uint8[i] << 16) + (uint8[i + 1] << 8) + (uint8[i + 2])
+    tmp =
+      ((uint8[i] << 16) & 0xFF0000) +
+      ((uint8[i + 1] << 8) & 0xFF00) +
+      (uint8[i + 2] & 0xFF)
     output.push(tripletToBase64(tmp))
   }
   return output.join('')
@@ -6208,30 +6260,33 @@ function fromByteArray (uint8) {
   var tmp
   var len = uint8.length
   var extraBytes = len % 3 // if we have 1 byte left, pad 2 bytes
-  var output = ''
   var parts = []
   var maxChunkLength = 16383 // must be multiple of 3
 
   // go through the array every three bytes, we'll deal with trailing stuff later
   for (var i = 0, len2 = len - extraBytes; i < len2; i += maxChunkLength) {
-    parts.push(encodeChunk(uint8, i, (i + maxChunkLength) > len2 ? len2 : (i + maxChunkLength)))
+    parts.push(encodeChunk(
+      uint8, i, (i + maxChunkLength) > len2 ? len2 : (i + maxChunkLength)
+    ))
   }
 
   // pad the end with zeros, but make sure to not forget the extra bytes
   if (extraBytes === 1) {
     tmp = uint8[len - 1]
-    output += lookup[tmp >> 2]
-    output += lookup[(tmp << 4) & 0x3F]
-    output += '=='
+    parts.push(
+      lookup[tmp >> 2] +
+      lookup[(tmp << 4) & 0x3F] +
+      '=='
+    )
   } else if (extraBytes === 2) {
-    tmp = (uint8[len - 2] << 8) + (uint8[len - 1])
-    output += lookup[tmp >> 10]
-    output += lookup[(tmp >> 4) & 0x3F]
-    output += lookup[(tmp << 2) & 0x3F]
-    output += '='
+    tmp = (uint8[len - 2] << 8) + uint8[len - 1]
+    parts.push(
+      lookup[tmp >> 10] +
+      lookup[(tmp >> 4) & 0x3F] +
+      lookup[(tmp << 2) & 0x3F] +
+      '='
+    )
   }
-
-  parts.push(output)
 
   return parts.join('')
 }
@@ -6243,7 +6298,7 @@ function fromByteArray (uint8) {
 
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
-  var eLen = nBytes * 8 - mLen - 1
+  var eLen = (nBytes * 8) - mLen - 1
   var eMax = (1 << eLen) - 1
   var eBias = eMax >> 1
   var nBits = -7
@@ -6256,12 +6311,12 @@ exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   e = s & ((1 << (-nBits)) - 1)
   s >>= (-nBits)
   nBits += eLen
-  for (; nBits > 0; e = e * 256 + buffer[offset + i], i += d, nBits -= 8) {}
+  for (; nBits > 0; e = (e * 256) + buffer[offset + i], i += d, nBits -= 8) {}
 
   m = e & ((1 << (-nBits)) - 1)
   e >>= (-nBits)
   nBits += mLen
-  for (; nBits > 0; m = m * 256 + buffer[offset + i], i += d, nBits -= 8) {}
+  for (; nBits > 0; m = (m * 256) + buffer[offset + i], i += d, nBits -= 8) {}
 
   if (e === 0) {
     e = 1 - eBias
@@ -6276,7 +6331,7 @@ exports.read = function (buffer, offset, isLE, mLen, nBytes) {
 
 exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   var e, m, c
-  var eLen = nBytes * 8 - mLen - 1
+  var eLen = (nBytes * 8) - mLen - 1
   var eMax = (1 << eLen) - 1
   var eBias = eMax >> 1
   var rt = (mLen === 23 ? Math.pow(2, -24) - Math.pow(2, -77) : 0)
@@ -6309,7 +6364,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
       m = 0
       e = eMax
     } else if (e + eBias >= 1) {
-      m = (value * c - 1) * Math.pow(2, mLen)
+      m = ((value * c) - 1) * Math.pow(2, mLen)
       e = e + eBias
     } else {
       m = value * Math.pow(2, eBias - 1) * Math.pow(2, mLen)
